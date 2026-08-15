@@ -1,14 +1,7 @@
 import { useCallback, useState } from "react";
-import { Dropzone } from "@/components/Dropzone";
+import { LandingPage } from "@/components/LandingPage";
 import { SessionPanel } from "@/components/SessionPanel";
 import { UploadMetadataDialog } from "@/components/UploadMetadataDialog";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { useSession } from "@/hooks/use-session";
 import { AppLayout } from "@/layout/AppLayout";
 import type { UploadResponse } from "@shared/types/upload";
@@ -74,31 +67,31 @@ export function App() {
     }
   }, [session]);
 
+  const handleStartSession = useCallback(() => {
+    void session.createLiveSession();
+  }, [session]);
+
   return (
     <AppLayout
       sessionId={session.sessionId}
       participantCount={session.participantCount}
       connected={session.connected}
       creating={session.creating}
-      onStartSession={() => {
-        void session.createLiveSession();
-      }}
+      onStartSession={handleStartSession}
       onLeaveSession={session.leaveSession}
     >
-      <div className="space-y-6">
-        <section className="space-y-2">
-          <p className="text-sm font-medium text-muted-foreground">
-            Live file sharing
-          </p>
-          <h1 className="text-3xl font-bold tracking-tight">dropafile</h1>
-          <p className="max-w-2xl text-muted-foreground">
-            {session.isInSession
-              ? "Share the QR or link so others can join and exchange files in real time."
-              : "Drop a file to start a live session instantly. Others can join and download while you stay connected."}
-          </p>
-        </section>
+      {session.isInSession ? (
+        <div className="space-y-6">
+          <section className="space-y-1">
+            <p className="text-sm font-medium text-muted-foreground">
+              Live session
+            </p>
+            <p className="max-w-2xl text-muted-foreground">
+              Share the QR or link so others can join and exchange files in real
+              time.
+            </p>
+          </section>
 
-        {session.isInSession ? (
           <SessionPanel
             sessionId={session.sessionId!}
             joinPath={session.joinPath}
@@ -118,21 +111,14 @@ export function App() {
               void handleUploadSuccess(data, file);
             }}
           />
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>Drop a file</CardTitle>
-              <CardDescription>
-                Drag and drop or browse. A live session starts as soon as your
-                file is ready.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Dropzone onUploadSuccess={handleUploadSuccess} />
-            </CardContent>
-          </Card>
-        )}
-      </div>
+        </div>
+      ) : (
+        <LandingPage
+          onUploadSuccess={handleUploadSuccess}
+          onStartSession={handleStartSession}
+          creating={session.creating}
+        />
+      )}
 
       <UploadMetadataDialog
         open={freshDialogOpen}
