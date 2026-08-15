@@ -1,6 +1,13 @@
-name = "cf-hono-react-file-uploader-template"
+name = "dropafile"
 main = "src/api-server/index.ts"
 compatibility_date = "2026-07-03"
+
+[durable_objects]
+bindings = [{ name = "SESSION_ROOM", class_name = "SessionRoom" }]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["SessionRoom"]
 
 [assets]
 not_found_handling = "single-page-application"

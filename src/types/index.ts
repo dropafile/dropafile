@@ -4,9 +4,17 @@ export type {
   UploadErrorResponse,
 } from "./upload";
 
+export type {
+  CreateSessionResponse,
+  SessionMessage,
+  SessionPresenceMessage,
+  SessionStatusResponse,
+} from "./session";
+
 export interface Env {
   ALLOWED_ORIGINS?: string;
   ENVIRONMENT?: string;
+  SESSION_ROOM: DurableObjectNamespace;
 }
 
 export interface SuccessResponse<T> {

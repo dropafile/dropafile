@@ -1,16 +1,16 @@
 # repo-name
 
-Fullstack **Cloudflare Worker** file uploader: **Hono** API + **React** SPA. Upload files to inspect metadata and ephemeral previews — nothing is stored server-side.
+**dropafile** — live-session file sharing on **Cloudflare Workers** (Hono + React). Drop files anytime; start a live session so connected peers can see and request what you share.
 
 ## Out-of-the-box features
 
 | Surface | Route / area | Description |
 |---------|----------------|-------------|
 | API | `GET /health` | Liveness check |
-| API | `POST /api/upload` | Classify file, metadata + preview |
-| App | Upload UI | Drag-and-drop, theme toggle, upload history |
-
-See [`index.md`](index.md) for architecture and extension guidance.
+| API | `POST /api/sessions` | Create a live room |
+| API | `GET /api/sessions/:id/ws` | WebSocket presence |
+| API | `POST /api/upload` | File metadata + preview |
+| App | Dropzone + session panel | Upload UI, QR / link share, live presence |
 
 ## Quick start
 

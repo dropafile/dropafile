@@ -1,52 +1,39 @@
-# cf-hono-react-file-uploader-template
+# dropafile
 
-Fullstack **Cloudflare Worker** app from [@open-templates](https://github.com/open-templates): **Hono** API + **React** SPA in one repo. Upload a file to inspect metadata and ephemeral previews (images, text, PDF, ZIP) — nothing is persisted.
+**dropafile** — live-session file sharing on **Cloudflare Workers** (Hono + React). Drop files anytime; start a live session so connected peers can see and request what you share.
+
+## Out-of-the-box features
+
+| Surface | Route / area | Description |
+|---------|----------------|-------------|
+| API | `GET /health` | Liveness check |
+| API | `POST /api/sessions` | Create a live room |
+| API | `GET /api/sessions/:id/ws` | WebSocket presence |
+| API | `POST /api/upload` | File metadata + preview |
+| App | Dropzone + session panel | Upload UI, QR / link share, live presence |
 
 ## Quick start
-
-1. **Use this template** on GitHub, then clone your repo.
-2. Personalize from `templates/`:
-
-```bash
-./scripts/init-from-template.sh
-```
-
-3. Install and run:
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open the URL Vite prints (usually `http://localhost:5173`).
+Test health:
 
-See [`templates/ABOUT_TEMPLATES.md`](templates/ABOUT_TEMPLATES.md) and [`docs/INIT_TEMPLATE.md`](docs/INIT_TEMPLATE.md).
+```bash
+curl http://localhost:5173/health
+```
 
-## Out-of-the-box features
-
-| Surface | Route / area | Description |
-|---------|----------------|-------------|
-| API | `GET /health` | Liveness check (header indicator in UI) |
-| API | `POST /api/upload` | Classify file, return metadata + preview |
-| App | Upload + history | Drag-and-drop UI, in-memory history (latest 10) |
-
-See [`index.md`](index.md) for architecture and extension guidance.
-
-## Scripts
-
-| Script | Purpose |
-|--------|---------|
-| `npm run dev` | Vite + Worker (local fullstack) |
-| `npm run build` | Production client + Worker bundle |
-| `npm run deploy` | Build and `wrangler deploy` |
-| `npm run typecheck` | TypeScript |
-| `npm run init` | Copy `templates/` → root (after fork) |
+Deploy: `npm run deploy`
 
 ## Environment variables
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `ALLOWED_ORIGINS` | No | Comma-separated CORS origins (only if calling API from another origin) |
+| `ALLOWED_ORIGINS` | No | Comma-separated CORS origins |
+
+Maintained by [xarlizard](https://github.com/xarlizard).
 
 ## License
 

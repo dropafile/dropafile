@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { Dropzone } from "@/components/Dropzone";
+import { SessionPanel } from "@/components/SessionPanel";
 import { UploadHistoryList } from "@/components/UploadHistoryList";
 import { UploadMetadataDialog } from "@/components/UploadMetadataDialog";
 import {
@@ -9,13 +10,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useSession } from "@/hooks/use-session";
 import { useUploadHistory } from "@/hooks/use-upload-history";
 import { AppLayout } from "@/layout/AppLayout";
 import type { UploadHistoryEntry } from "@/types/upload-ui";
-import { SUPPORTED_FORMATS } from "@shared/utils/supportedFormats";
 import type { UploadResponse } from "@shared/types/upload";
 
 export function App() {
+  const session = useSession();
   const { history, addEntry } = useUploadHistory();
   const [freshUpload, setFreshUpload] = useState<UploadResponse | null>(null);
   const [freshDialogOpen, setFreshDialogOpen] = useState(false);
@@ -49,24 +51,22 @@ export function App() {
       <div className="space-y-6">
         <section className="space-y-2">
           <p className="text-sm font-medium text-muted-foreground">
-            Local file inspector
+            Live file sharing
           </p>
-          <h1 className="text-3xl font-bold tracking-tight">Dropzone</h1>
+          <h1 className="text-3xl font-bold tracking-tight">dropafile</h1>
           <p className="max-w-2xl text-muted-foreground">
-            Drop a file to inspect its metadata and preview supported content
-            types. Processing happens in memory through the Worker API at{" "}
-            <code className="rounded bg-muted px-1.5 py-0.5 text-sm">
-              /api/upload
-            </code>
-            .
+            Drop files anytime. Start a live session when you want others on the
+            same link to see and request what you share.
           </p>
         </section>
 
         <Card>
           <CardHeader>
-            <CardTitle>Upload</CardTitle>
+            <CardTitle>Drop a file</CardTitle>
             <CardDescription>
-              Drag and drop a file here, or click to browse from your computer.
+              {session.isInSession
+                ? "Files you add here will be offered to everyone in your live session (coming next)."
+                : "Drag and drop or browse — session sharing is optional."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -74,43 +74,18 @@ export function App() {
           </CardContent>
         </Card>
 
-        <UploadHistoryList history={history} onSelect={openHistoryEntry} />
+        <SessionPanel
+          sessionId={session.sessionId}
+          joinPath={session.joinPath}
+          participantCount={session.participantCount}
+          connected={session.connected}
+          creating={session.creating}
+          onCreateSession={() => {
+            void session.createLiveSession();
+          }}
+        />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Supported file types</CardTitle>
-            <CardDescription>
-              Extensions are checked from file contents first, then filename.
-              Other formats are rejected before preview.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-4">
-              {SUPPORTED_FORMATS.map((format) => (
-                <li key={format.kind} className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-primary text-primary-foreground px-2.5 py-0.5 text-xs font-medium">
-                      {format.kind}
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      {format.preview}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {format.extensions.map((ext) => (
-                      <code
-                        key={ext}
-                        className="rounded bg-muted px-2 py-0.5 text-xs"
-                      >
-                        .{ext}
-                      </code>
-                    ))}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+        <UploadHistoryList history={history} onSelect={openHistoryEntry} />
       </div>
 
       <UploadMetadataDialog

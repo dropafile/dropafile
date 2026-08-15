@@ -1,3 +1,6 @@
+# dropafile/dropafile — @open-templates global gitignore
+# Personalized on init from templates/gitignore
+
 # --- Secrets and credentials (never commit) ---
 .env
 .env.*
@@ -116,6 +119,6 @@ temp/
 *.tfstate.*
 .terraform.lock.hcl
 
-# --- Wrangler / Cloudflare (if used) ---
+# --- Wrangler / Cloudflare / Vite ---
 .wrangler/
 .vite/

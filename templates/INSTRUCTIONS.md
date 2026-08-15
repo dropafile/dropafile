@@ -1,14 +1,16 @@
 # Agent & developer instructions — repo-name
 
-Fullstack **Hono + React** Cloudflare Worker file uploader. Upload files to inspect metadata and previews in memory.
+**dropafile** — live-session file sharing on **Hono + React** (Cloudflare Workers). Dropzone is always available; optional live sessions let connected peers discover and request files.
 
 ## What ships out of the box
 
 | Surface | Route / area | Description |
 |---------|----------------|-------------|
 | `GET /health` | API | Liveness probe |
+| `POST /api/sessions` | API | Create live room |
+| `GET /api/sessions/:id/ws` | API | WebSocket presence (Durable Object) |
 | `POST /api/upload` | API | File metadata + preview |
-| React app | `src/app/` | Upload UI and history |
+| React app | `src/app/` | Dropzone, session share (QR / link), upload history |
 
 Details: [`index.md`](index.md)
 

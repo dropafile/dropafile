@@ -24,9 +24,9 @@ export function AppHeader() {
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-4">
         <div className="flex items-center gap-3">
           <div className="flex size-8 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
-            DZ
+            DF
           </div>
-          <span className="font-semibold">Dropzone</span>
+          <span className="font-semibold">dropafile</span>
         </div>
 
         <div className="flex items-center gap-3">

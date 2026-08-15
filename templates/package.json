@@ -2,7 +2,7 @@
   "name": "repo-name",
   "version": "0.1.0",
   "private": true,
-  "description": "Fullstack Cloudflare Worker file uploader with Hono API and React SPA.",
+  "description": "Live-session file sharing on Cloudflare Workers — Hono API and React SPA.",
   "type": "module",
   "repository": {
     "type": "git",
