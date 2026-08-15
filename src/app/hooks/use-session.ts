@@ -6,7 +6,6 @@ import {
   sleep,
   triggerBrowserDownload,
 } from "@/lib/file-download";
-import { stripPreview } from "@/lib/upload-metadata";
 import {
   buildSessionWebSocketUrl,
   createSession,
@@ -62,6 +61,7 @@ export function useSession() {
   const localFilesRef = useRef(new Map<string, File>());
   const incomingTransfersRef = useRef(new Map<string, IncomingTransfer>());
   const pendingAnnouncementsRef = useRef<SharedFileRecord[]>([]);
+  const sharedFilesRef = useRef<SharedFileRecord[]>([]);
 
   const sendMessage = useCallback((message: unknown) => {
     const socket = socketRef.current;
@@ -86,22 +86,56 @@ export function useSession() {
     }
   }, [sendMessage]);
 
+  const offerOwnedFiles = useCallback(() => {
+    for (const [fileId] of localFilesRef.current.entries()) {
+      const record = sharedFilesRef.current.find(
+        (entry) => entry.fileId === fileId,
+      );
+
+      if (!record || record.ownerClientId !== clientId.current) {
+        continue;
+      }
+
+      sendMessage({ type: "file-added", file: record });
+    }
+  }, [sendMessage]);
+
   const upsertSharedFile = useCallback((file: SharedFileRecord) => {
     setSharedFiles((current) => {
       const next = current.filter((entry) => entry.fileId !== file.fileId);
-      return [file, ...next].sort((a, b) => b.uploadedAt - a.uploadedAt);
+      const merged = [file, ...next].sort((a, b) => b.uploadedAt - a.uploadedAt);
+      sharedFilesRef.current = merged;
+      return merged;
     });
   }, []);
 
   const removeSharedFile = useCallback((fileId: string) => {
-    setSharedFiles((current) =>
-      current.filter((entry) => entry.fileId !== fileId),
-    );
+    setSharedFiles((current) => {
+      const next = current.filter((entry) => entry.fileId !== fileId);
+      sharedFilesRef.current = next;
+      return next;
+    });
     localFilesRef.current.delete(fileId);
     incomingTransfersRef.current.delete(fileId);
     pendingAnnouncementsRef.current = pendingAnnouncementsRef.current.filter(
       (file) => file.fileId !== fileId,
     );
+  }, []);
+
+  const removeFilesForOwner = useCallback((ownerClientId: string) => {
+    setSharedFiles((current) => {
+      for (const file of current) {
+        if (file.ownerClientId === ownerClientId) {
+          incomingTransfersRef.current.delete(file.fileId);
+        }
+      }
+
+      const next = current.filter(
+        (file) => file.ownerClientId !== ownerClientId,
+      );
+      sharedFilesRef.current = next;
+      return next;
+    });
   }, []);
 
   const fulfillIncomingTransfer = useCallback(
@@ -238,24 +272,34 @@ export function useSession() {
           break;
         case "file-sync":
           setSharedFiles((current) => {
-            const serverFiles = [...message.files];
-            const serverIds = new Set(serverFiles.map((file) => file.fileId));
+            const remoteFiles = [...message.files];
+            const remoteIds = new Set(remoteFiles.map((file) => file.fileId));
             const localOnly = current.filter(
               (file) =>
                 file.ownerClientId === clientId.current &&
-                !serverIds.has(file.fileId),
+                !remoteIds.has(file.fileId),
             );
 
-            return [...serverFiles, ...localOnly].sort(
+            const merged = [...remoteFiles, ...localOnly].sort(
               (a, b) => b.uploadedAt - a.uploadedAt,
             );
+            sharedFilesRef.current = merged;
+            return merged;
           });
+          break;
+        case "peer-joined":
+          if (message.clientId !== clientId.current) {
+            offerOwnedFiles();
+          }
           break;
         case "file-added":
           upsertSharedFile(message.file);
           break;
         case "file-removed":
           removeSharedFile(message.fileId);
+          break;
+        case "owner-left":
+          removeFilesForOwner(message.clientId);
           break;
         case "file-request":
           if (localFilesRef.current.has(message.fileId)) {
@@ -334,6 +378,8 @@ export function useSession() {
   }, [
     flushPendingAnnouncements,
     fulfillIncomingTransfer,
+    offerOwnedFiles,
+    removeFilesForOwner,
     removeSharedFile,
     respondToFileRequest,
     state.sessionId,
@@ -364,6 +410,7 @@ export function useSession() {
 
           if (!options?.preserveFiles) {
             setSharedFiles([]);
+            sharedFilesRef.current = [];
             localFilesRef.current.clear();
             pendingAnnouncementsRef.current = [];
           }
@@ -404,6 +451,8 @@ export function useSession() {
   );
 
   const leaveSession = useCallback(() => {
+    sendMessage({ type: "owner-leaving" });
+
     if (socketRef.current) {
       socketRef.current.close(1000, "left session");
       socketRef.current = null;
@@ -413,9 +462,11 @@ export function useSession() {
     incomingTransfersRef.current.clear();
     pendingAnnouncementsRef.current = [];
 
-    setSharedFiles((current) =>
-      current.filter((file) => file.ownerClientId === clientId.current),
-    );
+    setSharedFiles((current) => {
+      const next = current.filter((file) => file.ownerClientId === clientId.current);
+      sharedFilesRef.current = next;
+      return next;
+    });
     sessionIdRef.current = null;
     setState({
       sessionId: null,
@@ -425,7 +476,7 @@ export function useSession() {
       creating: false,
     });
     toast.success("Left live session.");
-  }, []);
+  }, [sendMessage]);
 
   const removeFile = useCallback(
     (file: SharedFileRecord) => {
@@ -444,9 +495,8 @@ export function useSession() {
 
   const shareUploadedFile = useCallback(
     (response: UploadResponse, file: File) => {
-      const metadata = stripPreview(response);
       const record: SharedFileRecord = {
-        ...metadata,
+        ...response,
         fileId: crypto.randomUUID(),
         ownerClientId: clientId.current,
         uploadedAt: Date.now(),

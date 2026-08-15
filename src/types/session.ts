@@ -33,9 +33,23 @@ export type SessionFileRemoveMessage = {
   fileId: string;
 };
 
+export type SessionOwnerLeavingMessage = {
+  type: "owner-leaving";
+};
+
+export type SessionOwnerLeftMessage = {
+  type: "owner-left";
+  clientId: string;
+};
+
 export type SessionFileSyncMessage = {
   type: "file-sync";
   files: SharedFileRecord[];
+};
+
+export type SessionPeerJoinedMessage = {
+  type: "peer-joined";
+  clientId: string;
 };
 
 export type SessionFileRequestMessage = {
@@ -65,7 +79,10 @@ export type SessionMessage =
   | SessionFileAddedMessage
   | SessionFileRemovedMessage
   | SessionFileRemoveMessage
+  | SessionOwnerLeavingMessage
+  | SessionOwnerLeftMessage
   | SessionFileSyncMessage
+  | SessionPeerJoinedMessage
   | SessionFileRequestMessage
   | SessionFileDataMessage
   | SessionFileErrorMessage;

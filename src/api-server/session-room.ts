@@ -3,7 +3,6 @@ import type {
   SessionFileAddedMessage,
   SessionFileDataMessage,
   SessionFileErrorMessage,
-  SessionFileRemovedMessage,
   SessionFileRemoveMessage,
   SessionFileRequestMessage,
   SessionMessage,
@@ -14,10 +13,6 @@ type SocketAttachment = {
   clientId: string;
   connectedAt: number;
 };
-
-function presencePayload(count: number): string {
-  return JSON.stringify({ type: "presence", count });
-}
 
 function isActiveSocket(socket: WebSocket): boolean {
   return (
@@ -31,7 +26,10 @@ function getClientId(socket: WebSocket): string | null {
   return attachment?.clientId ?? null;
 }
 
+const RECONNECT_CLOSE_REASON = "replaced by newer connection";
+
 export class SessionRoom implements DurableObject {
+  /** Ephemeral catalog for routing only — never persisted. */
   private readonly files = new Map<string, SharedFileRecord>();
 
   constructor(
@@ -58,9 +56,8 @@ export class SessionRoom implements DurableObject {
         connectedAt: Date.now(),
       } satisfies SocketAttachment);
 
-      this.sendToSocket(server, {
-        type: "file-sync",
-        files: [...this.files.values()],
+      queueMicrotask(() => {
+        this.broadcastExcept(server, { type: "peer-joined", clientId });
       });
       this.broadcastPresence();
 
@@ -110,6 +107,9 @@ export class SessionRoom implements DurableObject {
       case "file-remove":
         this.handleFileRemove(senderClientId, parsed);
         break;
+      case "owner-leaving":
+        this.removeFilesForOwner(senderClientId);
+        break;
       case "file-request":
         this.handleFileRequest(senderClientId, parsed);
         break;
@@ -124,9 +124,15 @@ export class SessionRoom implements DurableObject {
     }
   }
 
-  webSocketClose(ws: WebSocket): void {
+  webSocketClose(
+    ws: WebSocket,
+    _code: number,
+    reason: string,
+  ): void {
     const clientId = getClientId(ws);
-    if (clientId) {
+    const isReconnectReplace = reason === RECONNECT_CLOSE_REASON;
+
+    if (clientId && !isReconnectReplace) {
       this.removeFilesForOwner(clientId);
     }
     this.broadcastPresence();
@@ -219,18 +225,26 @@ export class SessionRoom implements DurableObject {
   }
 
   private removeFilesForOwner(ownerClientId: string): void {
-    const removed: string[] = [];
+    let hadFiles = false;
+
+    for (const file of this.files.values()) {
+      if (file.ownerClientId === ownerClientId) {
+        hadFiles = true;
+        break;
+      }
+    }
+
+    if (!hadFiles) {
+      return;
+    }
 
     for (const [fileId, file] of this.files.entries()) {
       if (file.ownerClientId === ownerClientId) {
         this.files.delete(fileId);
-        removed.push(fileId);
       }
     }
 
-    for (const fileId of removed) {
-      this.broadcast({ type: "file-removed", fileId });
-    }
+    this.broadcast({ type: "owner-left", clientId: ownerClientId });
   }
 
   private closeSocketsForClient(clientId: string): void {
@@ -248,7 +262,7 @@ export class SessionRoom implements DurableObject {
       }
 
       try {
-        socket.close(1000, "replaced by newer connection");
+        socket.close(1000, RECONNECT_CLOSE_REASON);
       } catch {
         // Socket may already be closing.
       }

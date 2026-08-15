@@ -1,5 +1,3 @@
-export const TEXT_SNIPPET_LENGTH = 500;
-
 export const IMAGE_MIMES = new Set(['image/png', 'image/jpeg']);
 export const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg']);
 export const TEXT_MIMES = new Set(['text/plain', 'application/json']);

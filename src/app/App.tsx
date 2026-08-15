@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { LandingPage } from "@/components/LandingPage";
 import { SessionPanel } from "@/components/SessionPanel";
 import { UploadMetadataDialog } from "@/components/UploadMetadataDialog";
@@ -9,8 +9,6 @@ import type { SharedFileRecord } from "@shared/types/session";
 
 export function App() {
   const session = useSession();
-  const [freshUpload, setFreshUpload] = useState<UploadResponse | null>(null);
-  const [freshDialogOpen, setFreshDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<SharedFileRecord | null>(
     null,
   );
@@ -29,16 +27,9 @@ export function App() {
       }
 
       session.shareUploadedFile(data, file);
-      setFreshUpload(data);
-      setFreshDialogOpen(true);
     },
     [session],
   );
-
-  const closeFreshDialog = useCallback(() => {
-    setFreshDialogOpen(false);
-    setFreshUpload(null);
-  }, []);
 
   const openFilePreview = useCallback((file: SharedFileRecord) => {
     setSelectedFile(file);
@@ -70,6 +61,15 @@ export function App() {
   const handleStartSession = useCallback(() => {
     void session.createLiveSession();
   }, [session]);
+
+  useEffect(() => {
+    if (
+      selectedFile &&
+      !session.sharedFiles.some((file) => file.fileId === selectedFile.fileId)
+    ) {
+      setSelectedFile(null);
+    }
+  }, [selectedFile, session.sharedFiles]);
 
   return (
     <AppLayout
@@ -121,18 +121,11 @@ export function App() {
       )}
 
       <UploadMetadataDialog
-        open={freshDialogOpen}
-        onClose={closeFreshDialog}
-        title={freshUpload?.name ?? "Upload details"}
-        data={freshUpload}
-        preview={freshUpload?.preview}
-      />
-
-      <UploadMetadataDialog
         open={selectedFile !== null}
         onClose={closeFilePreview}
         title={selectedFile?.name ?? "File details"}
         data={selectedFile}
+        clientId={session.clientId}
       />
     </AppLayout>
   );

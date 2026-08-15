@@ -7,21 +7,21 @@ export const SUPPORTED_FORMATS = [
   {
     kind: "Images",
     extensions: Array.from(IMAGE_EXTENSIONS),
-    preview: "Thumbnail (max 200×200)",
+    metadata: "Width and height",
   },
   {
     kind: "Text",
     extensions: Array.from(TEXT_EXTENSIONS),
-    preview: "Text snippet",
+    metadata: "Character and line count",
   },
   {
     kind: "PDF",
     extensions: ["pdf"],
-    preview: "Metadata only",
+    metadata: "Metadata only",
   },
   {
     kind: "ZIP",
     extensions: ["zip"],
-    preview: "Metadata only",
+    metadata: "Metadata only",
   },
 ] as const;

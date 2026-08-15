@@ -8,10 +8,6 @@ export type UploadResponse = {
   detected_ext: string | null;
   kind: FileKind;
   metadata: Record<string, string | number | null>;
-  preview?: {
-    image?: string;
-    text?: string;
-  };
 };
 
 export type UploadErrorResponse = {

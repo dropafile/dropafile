@@ -1,7 +1,7 @@
 import type { UploadResponse } from "@shared/types/upload";
 import { classifyFile } from "@shared/utils/fileClassifier";
-import { buildImagePreview } from "@shared/utils/imagePreview";
-import { buildTextPreview } from "@shared/utils/textPreview";
+import { buildImageMetadata } from "@shared/utils/imagePreview";
+import { buildTextMetadata } from "@shared/utils/textPreview";
 
 type UploadedFile = {
   name: string;
@@ -58,9 +58,9 @@ export async function handleUpload(file: UploadedFile): Promise<{
 
   try {
     if (kind === "image") {
-      Object.assign(response, await buildImagePreview(file.buffer, mime ?? file.type));
+      Object.assign(response, await buildImageMetadata(file.buffer, mime ?? file.type));
     } else if (kind === "text") {
-      Object.assign(response, buildTextPreview(file.buffer));
+      Object.assign(response, buildTextMetadata(file.buffer));
     }
 
     return { status: 200, body: response };

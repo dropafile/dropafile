@@ -1,6 +1,6 @@
 import type { UploadResponse } from "@shared/types/upload";
 
-export type UploadMetadata = Omit<UploadResponse, "preview">;
+export type UploadMetadata = UploadResponse;
 
 export type UploadHistoryEntry = UploadMetadata & {
   id: string;
