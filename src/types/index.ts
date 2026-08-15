@@ -9,7 +9,10 @@ export type {
   SessionMessage,
   SessionPresenceMessage,
   SessionStatusResponse,
+  SharedFileRecord,
 } from "./session";
+
+export { parseSessionMessage } from "./session";
 
 export interface Env {
   ALLOWED_ORIGINS?: string;

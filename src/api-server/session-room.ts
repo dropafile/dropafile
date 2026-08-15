@@ -1,6 +1,13 @@
 import type { Env } from "@shared/types/index";
-
-const PRESENCE = "presence";
+import type {
+  SessionFileAddedMessage,
+  SessionFileDataMessage,
+  SessionFileErrorMessage,
+  SessionFileRemovedMessage,
+  SessionFileRequestMessage,
+  SessionMessage,
+  SharedFileRecord,
+} from "@shared/types/session";
 
 type SocketAttachment = {
   clientId: string;
@@ -8,7 +15,7 @@ type SocketAttachment = {
 };
 
 function presencePayload(count: number): string {
-  return JSON.stringify({ type: PRESENCE, count });
+  return JSON.stringify({ type: "presence", count });
 }
 
 function isActiveSocket(socket: WebSocket): boolean {
@@ -18,7 +25,14 @@ function isActiveSocket(socket: WebSocket): boolean {
   );
 }
 
+function getClientId(socket: WebSocket): string | null {
+  const attachment = socket.deserializeAttachment() as SocketAttachment | null;
+  return attachment?.clientId ?? null;
+}
+
 export class SessionRoom implements DurableObject {
+  private readonly files = new Map<string, SharedFileRecord>();
+
   constructor(
     private readonly state: DurableObjectState,
     _env: Env,
@@ -43,6 +57,10 @@ export class SessionRoom implements DurableObject {
         connectedAt: Date.now(),
       } satisfies SocketAttachment);
 
+      this.sendToSocket(server, {
+        type: "file-sync",
+        files: [...this.files.values()],
+      });
       this.broadcastPresence();
 
       return new Response(null, { status: 101, webSocket: client });
@@ -67,7 +85,46 @@ export class SessionRoom implements DurableObject {
     return new Response("Not Found", { status: 404 });
   }
 
-  webSocketClose(_ws: WebSocket): void {
+  webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): void {
+    if (typeof message !== "string") {
+      return;
+    }
+
+    let parsed: SessionMessage;
+    try {
+      parsed = JSON.parse(message) as SessionMessage;
+    } catch {
+      return;
+    }
+
+    const senderClientId = getClientId(ws);
+    if (!senderClientId) {
+      return;
+    }
+
+    switch (parsed.type) {
+      case "file-added":
+        this.handleFileAdded(ws, senderClientId, parsed);
+        break;
+      case "file-request":
+        this.handleFileRequest(senderClientId, parsed);
+        break;
+      case "file-data":
+        this.handleFileData(senderClientId, parsed);
+        break;
+      case "file-error":
+        this.handleFileError(senderClientId, parsed);
+        break;
+      default:
+        break;
+    }
+  }
+
+  webSocketClose(ws: WebSocket): void {
+    const clientId = getClientId(ws);
+    if (clientId) {
+      this.removeFilesForOwner(clientId);
+    }
     this.broadcastPresence();
   }
 
@@ -77,7 +134,86 @@ export class SessionRoom implements DurableObject {
     } catch {
       // Already closed.
     }
+    const clientId = getClientId(ws);
+    if (clientId) {
+      this.removeFilesForOwner(clientId);
+    }
     this.broadcastPresence();
+  }
+
+  private handleFileAdded(
+    ws: WebSocket,
+    senderClientId: string,
+    message: SessionFileAddedMessage,
+  ): void {
+    const file: SharedFileRecord = {
+      ...message.file,
+      ownerClientId: senderClientId,
+    };
+
+    this.files.set(file.fileId, file);
+    this.broadcastExcept(ws, { type: "file-added", file });
+  }
+
+  private handleFileRequest(
+    senderClientId: string,
+    message: SessionFileRequestMessage,
+  ): void {
+    const file = this.files.get(message.fileId);
+    if (!file) {
+      this.sendToClient(senderClientId, {
+        type: "file-error",
+        fileId: message.fileId,
+        requesterClientId: message.requesterClientId,
+        message: "File is no longer available.",
+      });
+      return;
+    }
+
+    if (message.requesterClientId !== senderClientId) {
+      return;
+    }
+
+    this.sendToClient(file.ownerClientId, message);
+  }
+
+  private handleFileData(
+    senderClientId: string,
+    message: SessionFileDataMessage,
+  ): void {
+    const file = this.files.get(message.fileId);
+    if (!file || file.ownerClientId !== senderClientId) {
+      return;
+    }
+
+    this.sendToClient(message.requesterClientId, message);
+  }
+
+  private handleFileError(
+    senderClientId: string,
+    message: SessionFileErrorMessage,
+  ): void {
+    const file = this.files.get(message.fileId);
+    if (!file || file.ownerClientId !== senderClientId) {
+      return;
+    }
+
+    this.sendToClient(message.requesterClientId, message);
+  }
+
+  private removeFilesForOwner(ownerClientId: string): void {
+    const removed: string[] = [];
+
+    for (const [fileId, file] of this.files.entries()) {
+      if (file.ownerClientId === ownerClientId) {
+        this.files.delete(fileId);
+        removed.push(fileId);
+      }
+    }
+
+    for (const fileId of removed) {
+      this.broadcast({ type: "file-removed", fileId });
+    }
   }
 
   private closeSocketsForClient(clientId: string): void {
@@ -108,7 +244,11 @@ export class SessionRoom implements DurableObject {
 
   private broadcastPresence(): void {
     const count = this.activeSocketCount();
-    const payload = presencePayload(count);
+    this.broadcast({ type: "presence", count });
+  }
+
+  private broadcast(message: SessionMessage): void {
+    const payload = JSON.stringify(message);
 
     for (const socket of this.state.getWebSockets()) {
       if (!isActiveSocket(socket)) {
@@ -120,6 +260,45 @@ export class SessionRoom implements DurableObject {
       } catch {
         // Socket may already be closing.
       }
+    }
+  }
+
+  private broadcastExcept(ws: WebSocket, message: SessionMessage): void {
+    const payload = JSON.stringify(message);
+
+    for (const socket of this.state.getWebSockets()) {
+      if (socket === ws || !isActiveSocket(socket)) {
+        continue;
+      }
+
+      try {
+        socket.send(payload);
+      } catch {
+        // Socket may already be closing.
+      }
+    }
+  }
+
+  private sendToSocket(ws: WebSocket, message: SessionMessage): void {
+    if (!isActiveSocket(ws)) {
+      return;
+    }
+
+    try {
+      ws.send(JSON.stringify(message));
+    } catch {
+      // Socket may already be closing.
+    }
+  }
+
+  private sendToClient(clientId: string, message: SessionMessage): void {
+    for (const socket of this.state.getWebSockets()) {
+      if (getClientId(socket) !== clientId) {
+        continue;
+      }
+
+      this.sendToSocket(socket, message);
+      return;
     }
   }
 }

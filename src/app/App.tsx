@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { Dropzone } from "@/components/Dropzone";
+import { SessionFilesList } from "@/components/SessionFilesList";
 import { SessionPanel } from "@/components/SessionPanel";
-import { UploadHistoryList } from "@/components/UploadHistoryList";
 import { UploadMetadataDialog } from "@/components/UploadMetadataDialog";
 import {
   Card,
@@ -11,26 +11,26 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useSession } from "@/hooks/use-session";
-import { useUploadHistory } from "@/hooks/use-upload-history";
 import { AppLayout } from "@/layout/AppLayout";
-import type { UploadHistoryEntry } from "@/types/upload-ui";
 import type { UploadResponse } from "@shared/types/upload";
+import type { SharedFileRecord } from "@shared/types/session";
 
 export function App() {
   const session = useSession();
-  const { history, addEntry } = useUploadHistory();
   const [freshUpload, setFreshUpload] = useState<UploadResponse | null>(null);
   const [freshDialogOpen, setFreshDialogOpen] = useState(false);
-  const [selectedHistoryEntry, setSelectedHistoryEntry] =
-    useState<UploadHistoryEntry | null>(null);
+  const [selectedFile, setSelectedFile] = useState<SharedFileRecord | null>(
+    null,
+  );
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
 
   const handleUploadSuccess = useCallback(
-    (data: UploadResponse) => {
-      addEntry(data);
+    (data: UploadResponse, file: File) => {
+      session.shareUploadedFile(data, file);
       setFreshUpload(data);
       setFreshDialogOpen(true);
     },
-    [addEntry],
+    [session],
   );
 
   const closeFreshDialog = useCallback(() => {
@@ -38,13 +38,22 @@ export function App() {
     setFreshUpload(null);
   }, []);
 
-  const openHistoryEntry = useCallback((entry: UploadHistoryEntry) => {
-    setSelectedHistoryEntry(entry);
+  const openFilePreview = useCallback((file: SharedFileRecord) => {
+    setSelectedFile(file);
   }, []);
 
-  const closeHistoryDialog = useCallback(() => {
-    setSelectedHistoryEntry(null);
+  const closeFilePreview = useCallback(() => {
+    setSelectedFile(null);
   }, []);
+
+  const handleDownloadAll = useCallback(async () => {
+    setIsDownloadingAll(true);
+    try {
+      await session.downloadAllFiles();
+    } finally {
+      setIsDownloadingAll(false);
+    }
+  }, [session]);
 
   return (
     <AppLayout>
@@ -65,8 +74,8 @@ export function App() {
             <CardTitle>Drop a file</CardTitle>
             <CardDescription>
               {session.isInSession
-                ? "Files you add here will be offered to everyone in your live session (coming next)."
-                : "Drag and drop or browse — session sharing is optional."}
+                ? "Files you drop are shared with everyone connected to this session."
+                : "Drag and drop or browse. Start a live session to share with others."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -85,7 +94,20 @@ export function App() {
           }}
         />
 
-        <UploadHistoryList history={history} onSelect={openHistoryEntry} />
+        <SessionFilesList
+          files={session.sharedFiles}
+          clientId={session.clientId}
+          isInSession={session.isInSession}
+          onPreview={openFilePreview}
+          onDownload={(file) => {
+            void session.downloadFile(file);
+          }}
+          onDownloadAll={() => {
+            void handleDownloadAll();
+          }}
+          isDownloading={session.isDownloading}
+          isDownloadingAll={isDownloadingAll}
+        />
       </div>
 
       <UploadMetadataDialog
@@ -97,10 +119,10 @@ export function App() {
       />
 
       <UploadMetadataDialog
-        open={selectedHistoryEntry !== null}
-        onClose={closeHistoryDialog}
-        title={selectedHistoryEntry?.name ?? "Upload details"}
-        data={selectedHistoryEntry}
+        open={selectedFile !== null}
+        onClose={closeFilePreview}
+        title={selectedFile?.name ?? "File details"}
+        data={selectedFile}
       />
     </AppLayout>
   );

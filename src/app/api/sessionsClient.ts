@@ -1,7 +1,6 @@
 import type { ApiResponse } from "@shared/types/index";
 import type {
   CreateSessionResponse,
-  SessionMessage,
   SessionStatusResponse,
 } from "@shared/types/session";
 
@@ -50,17 +49,7 @@ export function buildSessionWebSocketUrl(sessionId: string): string {
   return `${protocol}//${window.location.host}/api/sessions/${sessionId}/ws?clientId=${clientId}`;
 }
 
-export function parseSessionMessage(raw: string): SessionMessage | null {
-  try {
-    const data = JSON.parse(raw) as SessionMessage;
-    if (data.type === "presence" && typeof data.count === "number") {
-      return data;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
+export { parseSessionMessage } from "@shared/types/session";
 
 export function buildShareUrl(joinPath: string): string {
   return new URL(joinPath, window.location.origin).toString();

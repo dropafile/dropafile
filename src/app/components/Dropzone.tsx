@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import type { UploadResponse } from "@shared/types/upload";
 
 type DropzoneProps = {
-  onUploadSuccess: (data: UploadResponse) => void;
+  onUploadSuccess: (data: UploadResponse, file: File) => void;
 };
 
 export function Dropzone({ onUploadSuccess }: DropzoneProps) {
@@ -19,7 +19,7 @@ export function Dropzone({ onUploadSuccess }: DropzoneProps) {
 
     try {
       const data = await uploadFile(file);
-      onUploadSuccess(data);
+      onUploadSuccess(data, file);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed.");
     } finally {

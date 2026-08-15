@@ -4,12 +4,13 @@ import { MetadataList } from "@/components/MetadataList";
 import { Button } from "@/components/ui/button";
 import type { UploadMetadata } from "@/types/upload-ui";
 import type { UploadResponse } from "@shared/types/upload";
+import type { SharedFileRecord } from "@shared/types/session";
 
 type UploadMetadataDialogProps = {
   open: boolean;
   onClose: () => void;
   title: string;
-  data: UploadMetadata | null;
+  data: UploadMetadata | SharedFileRecord | null;
   preview?: UploadResponse["preview"];
 };
 
