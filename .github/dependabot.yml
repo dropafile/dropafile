@@ -1,0 +1,28 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # assignees:
+    #   - open-templates
+    commit-message:
+      prefix: chore
+      include: scope
+    allow:
+      - dependency-type: direct
+      - dependency-type: indirect
+    ignore:
+      - dependency-name: '*'
+        update-types:
+          - version-update:semver-major
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # assignees:
+    #   - open-templates
+    commit-message:
+      prefix: ci
+      include: scope
