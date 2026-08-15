@@ -11,6 +11,7 @@ import {
   buildSessionWebSocketUrl,
   createSession,
   getOrCreateClientId,
+  clearSessionFromLocation,
   readSessionIdFromLocation,
   writeSessionToLocation,
 } from "@/api/sessionsClient";
@@ -41,6 +42,8 @@ type IncomingTransfer = {
 export function useSession() {
   const clientId = useRef(getOrCreateClientId());
   const initialSessionId = readSessionIdFromLocation();
+  const sessionIdRef = useRef<string | null>(initialSessionId);
+  const creationPromiseRef = useRef<Promise<boolean> | null>(null);
 
   const [state, setState] = useState<SessionState>(() => ({
     sessionId: initialSessionId,
@@ -58,6 +61,7 @@ export function useSession() {
   const socketRef = useRef<WebSocket | null>(null);
   const localFilesRef = useRef(new Map<string, File>());
   const incomingTransfersRef = useRef(new Map<string, IncomingTransfer>());
+  const pendingAnnouncementsRef = useRef<SharedFileRecord[]>([]);
 
   const sendMessage = useCallback((message: unknown) => {
     const socket = socketRef.current;
@@ -68,6 +72,19 @@ export function useSession() {
     socket.send(JSON.stringify(message));
     return true;
   }, []);
+
+  const flushPendingAnnouncements = useCallback(() => {
+    if (pendingAnnouncementsRef.current.length === 0) {
+      return;
+    }
+
+    const pending = [...pendingAnnouncementsRef.current];
+    pendingAnnouncementsRef.current = [];
+
+    for (const file of pending) {
+      sendMessage({ type: "file-added", file });
+    }
+  }, [sendMessage]);
 
   const upsertSharedFile = useCallback((file: SharedFileRecord) => {
     setSharedFiles((current) => {
@@ -82,6 +99,9 @@ export function useSession() {
     );
     localFilesRef.current.delete(fileId);
     incomingTransfersRef.current.delete(fileId);
+    pendingAnnouncementsRef.current = pendingAnnouncementsRef.current.filter(
+      (file) => file.fileId !== fileId,
+    );
   }, []);
 
   const fulfillIncomingTransfer = useCallback(
@@ -199,6 +219,8 @@ export function useSession() {
         joinPath: `/s/${sessionId}`,
         connected: true,
       }));
+
+      flushPendingAnnouncements();
     });
 
     socket.addEventListener("message", (event) => {
@@ -215,9 +237,19 @@ export function useSession() {
           }));
           break;
         case "file-sync":
-          setSharedFiles(
-            [...message.files].sort((a, b) => b.uploadedAt - a.uploadedAt),
-          );
+          setSharedFiles((current) => {
+            const serverFiles = [...message.files];
+            const serverIds = new Set(serverFiles.map((file) => file.fileId));
+            const localOnly = current.filter(
+              (file) =>
+                file.ownerClientId === clientId.current &&
+                !serverIds.has(file.fileId),
+            );
+
+            return [...serverFiles, ...localOnly].sort(
+              (a, b) => b.uploadedAt - a.uploadedAt,
+            );
+          });
           break;
         case "file-added":
           upsertSharedFile(message.file);
@@ -300,6 +332,7 @@ export function useSession() {
       }
     };
   }, [
+    flushPendingAnnouncements,
     fulfillIncomingTransfer,
     removeSharedFile,
     respondToFileRequest,
@@ -307,30 +340,107 @@ export function useSession() {
     upsertSharedFile,
   ]);
 
-  const createLiveSession = useCallback(async () => {
-    setState((current) => ({ ...current, creating: true }));
+  type CreateSessionOptions = {
+    preserveFiles?: boolean;
+    silent?: boolean;
+  };
 
-    try {
-      const session = await createSession();
-      writeSessionToLocation(session.id);
-      setState((current) => ({
-        ...current,
-        sessionId: session.id,
-        joinPath: session.joinPath,
-        participantCount: 0,
-        connected: false,
-        creating: false,
-      }));
-      setSharedFiles([]);
-      localFilesRef.current.clear();
-      toast.success("Live session created.");
-    } catch (error) {
-      setState((current) => ({ ...current, creating: false }));
-      toast.error(
-        error instanceof Error ? error.message : "Could not create session.",
-      );
+  const createLiveSession = useCallback(
+    async (options?: CreateSessionOptions): Promise<boolean> => {
+      if (sessionIdRef.current) {
+        return true;
+      }
+
+      if (creationPromiseRef.current) {
+        return creationPromiseRef.current;
+      }
+
+      const creation = (async (): Promise<boolean> => {
+        setState((current) => ({ ...current, creating: true }));
+
+        try {
+          const session = await createSession();
+          writeSessionToLocation(session.id);
+
+          if (!options?.preserveFiles) {
+            setSharedFiles([]);
+            localFilesRef.current.clear();
+            pendingAnnouncementsRef.current = [];
+          }
+
+          sessionIdRef.current = session.id;
+          setState((current) => ({
+            ...current,
+            sessionId: session.id,
+            joinPath: session.joinPath,
+            participantCount: 0,
+            connected: false,
+            creating: false,
+          }));
+
+          if (!options?.silent) {
+            toast.success("Live session created.");
+          }
+
+          return true;
+        } catch (error) {
+          setState((current) => ({ ...current, creating: false }));
+          toast.error(
+            error instanceof Error ? error.message : "Could not create session.",
+          );
+          return false;
+        }
+      })();
+
+      creationPromiseRef.current = creation;
+
+      try {
+        return await creation;
+      } finally {
+        creationPromiseRef.current = null;
+      }
+    },
+    [],
+  );
+
+  const leaveSession = useCallback(() => {
+    if (socketRef.current) {
+      socketRef.current.close(1000, "left session");
+      socketRef.current = null;
     }
+
+    clearSessionFromLocation();
+    incomingTransfersRef.current.clear();
+    pendingAnnouncementsRef.current = [];
+
+    setSharedFiles((current) =>
+      current.filter((file) => file.ownerClientId === clientId.current),
+    );
+    sessionIdRef.current = null;
+    setState({
+      sessionId: null,
+      joinPath: null,
+      participantCount: 0,
+      connected: false,
+      creating: false,
+    });
+    toast.success("Left live session.");
   }, []);
+
+  const removeFile = useCallback(
+    (file: SharedFileRecord) => {
+      if (file.ownerClientId !== clientId.current) {
+        return;
+      }
+
+      removeSharedFile(file.fileId);
+
+      if (sessionIdRef.current) {
+        sendMessage({ type: "file-remove", fileId: file.fileId });
+      }
+    },
+    [removeSharedFile, sendMessage],
+  );
 
   const shareUploadedFile = useCallback(
     (response: UploadResponse, file: File) => {
@@ -345,14 +455,14 @@ export function useSession() {
       localFilesRef.current.set(record.fileId, file);
       upsertSharedFile(record);
 
-      if (state.sessionId) {
+      if (sessionIdRef.current) {
         const sent = sendMessage({ type: "file-added", file: record });
         if (!sent) {
-          toast.error("File saved locally but could not share to the session.");
+          pendingAnnouncementsRef.current.push(record);
         }
       }
     },
-    [sendMessage, state.sessionId, upsertSharedFile],
+    [sendMessage, upsertSharedFile],
   );
 
   const resolveFileBlob = useCallback(
@@ -431,8 +541,10 @@ export function useSession() {
     clientId: clientId.current,
     sharedFiles,
     createLiveSession,
+    leaveSession,
     isInSession: state.sessionId !== null,
     shareUploadedFile,
+    removeFile,
     downloadFile,
     downloadAllFiles,
     isDownloading,

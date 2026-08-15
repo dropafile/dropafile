@@ -7,9 +7,10 @@ import type { UploadResponse } from "@shared/types/upload";
 
 type DropzoneProps = {
   onUploadSuccess: (data: UploadResponse, file: File) => void;
+  compact?: boolean;
 };
 
-export function Dropzone({ onUploadSuccess }: DropzoneProps) {
+export function Dropzone({ onUploadSuccess, compact = false }: DropzoneProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -40,7 +41,10 @@ export function Dropzone({ onUploadSuccess }: DropzoneProps) {
     <>
       <div
         className={cn(
-          "relative flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors",
+          "relative flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed text-center transition-colors",
+          compact
+            ? "min-h-24 px-4 py-5"
+            : "min-h-40 px-6 py-10",
           dragOver
             ? "border-primary bg-accent/40"
             : "border-border bg-muted/20 hover:border-primary/50 hover:bg-muted/40",
@@ -78,9 +82,18 @@ export function Dropzone({ onUploadSuccess }: DropzoneProps) {
           </>
         ) : (
           <>
-            <span className="text-lg font-medium">Drop a file here</span>
+            <span
+              className={cn(
+                "font-medium",
+                compact ? "text-sm" : "text-lg",
+              )}
+            >
+              Drop a file here
+            </span>
             <span className="mt-1 text-sm text-muted-foreground">
-              or click to browse your local files
+              {compact
+                ? "or click to browse"
+                : "or click to browse your local files"}
             </span>
           </>
         )}

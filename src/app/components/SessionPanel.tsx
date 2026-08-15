@@ -1,25 +1,23 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ChevronDown,
   Copy,
+  Download,
   Link2,
   LoaderCircle,
   Mail,
   MessageCircle,
-  QrCode,
-  Users,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { buildShareUrl } from "@/api/sessionsClient";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Dropzone } from "@/components/Dropzone";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  SessionFilesPanel,
+  type SessionFilesPanelProps,
+} from "@/components/SessionFilesList";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,39 +30,35 @@ import {
   openShareUrl,
 } from "@/lib/session-share";
 import { cn } from "@/lib/utils";
+import type { UploadResponse } from "@shared/types/upload";
 
 type SessionPanelProps = {
-  sessionId: string | null;
+  sessionId: string;
   joinPath: string | null;
-  participantCount: number;
-  connected: boolean;
-  creating: boolean;
-  onCreateSession: () => void;
-};
+  onUploadSuccess: (data: UploadResponse, file: File) => void;
+  onDownloadAll: () => void;
+  isDownloadingAll?: boolean;
+} & SessionFilesPanelProps;
 
 export function SessionPanel({
   sessionId,
   joinPath,
-  participantCount,
-  connected,
-  creating,
-  onCreateSession,
+  onUploadSuccess,
+  onDownloadAll,
+  isDownloadingAll = false,
+  files,
+  ...filesProps
 }: SessionPanelProps) {
+  const [qrHovered, setQrHovered] = useState(false);
+
   const shareUrl = useMemo(() => {
     if (joinPath) {
       return buildShareUrl(joinPath);
     }
-    if (sessionId) {
-      return buildShareUrl(`/s/${sessionId}`);
-    }
-    return null;
+    return buildShareUrl(`/s/${sessionId}`);
   }, [joinPath, sessionId]);
 
   const copyShareLink = useCallback(async () => {
-    if (!shareUrl) {
-      return;
-    }
-
     try {
       await navigator.clipboard.writeText(shareUrl);
       toast.success("Share link copied.");
@@ -74,111 +68,83 @@ export function SessionPanel({
   }, [shareUrl]);
 
   const shareByMail = useCallback(() => {
-    if (!shareUrl) {
-      return;
-    }
-
     openShareUrl(buildMailShareUrl(shareUrl));
   }, [shareUrl]);
 
   const shareByWhatsApp = useCallback(() => {
-    if (!shareUrl) {
-      return;
-    }
-
     openShareUrl(buildWhatsAppShareUrl(shareUrl));
   }, [shareUrl]);
 
-  if (!sessionId) {
-    return (
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Live session</CardTitle>
-          <CardDescription>
-            Create a room so others can join and receive files while someone is
-            connected.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button onClick={onCreateSession} disabled={creating}>
-            {creating ? (
-              <>
-                <LoaderCircle className="size-4 animate-spin" />
-                Creating…
-              </>
-            ) : (
-              <>
-                <Link2 className="size-4" />
-                Start live session
-              </>
-            )}
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <Card>
-      <CardHeader className="pb-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <CardTitle className="text-lg">Live session</CardTitle>
-            <CardDescription>
-              Share this link or QR so others can join your room.
-            </CardDescription>
-          </div>
-          <div
-            className={cn(
-              "flex items-center gap-2 rounded-full border px-3 py-1 text-sm",
-              connected
-                ? "border-green-500/40 bg-green-500/10 text-green-700 dark:text-green-300"
-                : "border-muted text-muted-foreground",
-            )}
+      {files.length > 0 ? (
+        <div className="flex justify-end px-6 pt-6">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={onDownloadAll}
+            disabled={isDownloadingAll}
           >
-            <Users className="size-3.5" />
-            <span>
-              {participantCount} connected
-              {!connected ? " · reconnecting…" : ""}
-            </span>
-          </div>
+            {isDownloadingAll ? (
+              <LoaderCircle className="size-4 animate-spin" />
+            ) : (
+              <Download className="size-4" />
+            )}
+            Download all
+          </Button>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-          {shareUrl ? (
-            <div className="flex shrink-0 flex-col items-center gap-2 rounded-lg border bg-background p-3">
-              <QRCodeSVG value={shareUrl} size={128} level="M" />
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <QrCode className="size-3" />
-                Scan to join
-              </span>
-            </div>
-          ) : null}
+      ) : null}
 
-          <div className="min-w-0 flex-1 space-y-3">
-            <div className="space-y-1">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Session code
-              </p>
-              <code className="block truncate rounded-md bg-muted px-3 py-2 text-sm">
-                {sessionId}
-              </code>
-            </div>
+      <CardContent className={files.length > 0 ? "pt-4" : "pt-6"}>
+        <div className="flex flex-col gap-6 md:flex-row md:items-stretch">
+          <div className="flex w-full shrink-0 flex-col items-center gap-3 md:w-44">
+            <div
+              className="group relative w-full max-w-[11rem]"
+              onMouseEnter={() => setQrHovered(true)}
+              onMouseLeave={() => setQrHovered(false)}
+              onFocus={() => setQrHovered(true)}
+              onBlur={() => setQrHovered(false)}
+              tabIndex={0}
+              role="img"
+              aria-label={`Session QR code. Session code ${sessionId}. Hover to reveal code.`}
+            >
+              <div
+                className={cn(
+                  "rounded-lg border bg-white p-3 transition duration-200",
+                  qrHovered && "blur-[3px] opacity-70",
+                )}
+              >
+                <QRCodeSVG
+                  value={shareUrl}
+                  size={152}
+                  level="M"
+                  className="h-auto w-full"
+                />
+              </div>
 
-            {shareUrl ? (
-              <div className="space-y-1">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Share link
-                </p>
-                <code className="block break-all rounded-md bg-muted px-3 py-2 text-sm">
-                  {shareUrl}
+              <div
+                className={cn(
+                  "pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg px-2 transition-opacity duration-200",
+                  qrHovered ? "opacity-100" : "opacity-0",
+                )}
+              >
+                <code className="rounded-md border bg-background/95 px-2 py-1.5 text-center text-xs font-medium shadow-sm backdrop-blur-sm">
+                  {sessionId}
                 </code>
               </div>
-            ) : null}
+            </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="secondary" onClick={copyShareLink}>
+            <div className="flex w-full max-w-[11rem] flex-col gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="w-full"
+                onClick={() => {
+                  void copyShareLink();
+                }}
+              >
                 <Copy className="size-4" />
                 Copy link
               </Button>
@@ -186,14 +152,16 @@ export function SessionPanel({
               <DropdownMenu>
                 <DropdownMenuTrigger
                   type="button"
-                  className={cn(buttonVariants({ variant: "default" }))}
-                  disabled={!shareUrl}
+                  className={cn(
+                    buttonVariants({ variant: "default", size: "sm" }),
+                    "w-full",
+                  )}
                 >
                   <Link2 className="size-4" />
                   Share
                   <ChevronDown className="size-4 opacity-70" />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
+                <DropdownMenuContent align="center" className="w-40">
                   <DropdownMenuItem onSelect={shareByMail}>
                     <Mail className="size-4" />
                     Mail
@@ -205,6 +173,11 @@ export function SessionPanel({
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
+          </div>
+
+          <div className="flex min-w-0 flex-1 flex-col gap-3 border-t pt-6 md:border-t-0 md:border-l md:pt-0 md:pl-6">
+            <Dropzone compact onUploadSuccess={onUploadSuccess} />
+            <SessionFilesPanel files={files} {...filesProps} />
           </div>
         </div>
       </CardContent>

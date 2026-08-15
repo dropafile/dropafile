@@ -28,6 +28,11 @@ export type SessionFileRemovedMessage = {
   fileId: string;
 };
 
+export type SessionFileRemoveMessage = {
+  type: "file-remove";
+  fileId: string;
+};
+
 export type SessionFileSyncMessage = {
   type: "file-sync";
   files: SharedFileRecord[];
@@ -59,6 +64,7 @@ export type SessionMessage =
   | SessionPresenceMessage
   | SessionFileAddedMessage
   | SessionFileRemovedMessage
+  | SessionFileRemoveMessage
   | SessionFileSyncMessage
   | SessionFileRequestMessage
   | SessionFileDataMessage

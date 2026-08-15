@@ -1,6 +1,5 @@
 import { useCallback, useState } from "react";
 import { Dropzone } from "@/components/Dropzone";
-import { SessionFilesList } from "@/components/SessionFilesList";
 import { SessionPanel } from "@/components/SessionPanel";
 import { UploadMetadataDialog } from "@/components/UploadMetadataDialog";
 import {
@@ -25,7 +24,17 @@ export function App() {
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
 
   const handleUploadSuccess = useCallback(
-    (data: UploadResponse, file: File) => {
+    async (data: UploadResponse, file: File) => {
+      if (!session.isInSession) {
+        const created = await session.createLiveSession({
+          preserveFiles: true,
+          silent: true,
+        });
+        if (!created) {
+          return;
+        }
+      }
+
       session.shareUploadedFile(data, file);
       setFreshUpload(data);
       setFreshDialogOpen(true);
@@ -46,6 +55,16 @@ export function App() {
     setSelectedFile(null);
   }, []);
 
+  const handleRemoveFile = useCallback(
+    (file: SharedFileRecord) => {
+      session.removeFile(file);
+      setSelectedFile((current) =>
+        current?.fileId === file.fileId ? null : current,
+      );
+    },
+    [session],
+  );
+
   const handleDownloadAll = useCallback(async () => {
     setIsDownloadingAll(true);
     try {
@@ -56,7 +75,16 @@ export function App() {
   }, [session]);
 
   return (
-    <AppLayout>
+    <AppLayout
+      sessionId={session.sessionId}
+      participantCount={session.participantCount}
+      connected={session.connected}
+      creating={session.creating}
+      onStartSession={() => {
+        void session.createLiveSession();
+      }}
+      onLeaveSession={session.leaveSession}
+    >
       <div className="space-y-6">
         <section className="space-y-2">
           <p className="text-sm font-medium text-muted-foreground">
@@ -64,50 +92,46 @@ export function App() {
           </p>
           <h1 className="text-3xl font-bold tracking-tight">dropafile</h1>
           <p className="max-w-2xl text-muted-foreground">
-            Drop files anytime. Start a live session when you want others on the
-            same link to see and request what you share.
+            {session.isInSession
+              ? "Share the QR or link so others can join and exchange files in real time."
+              : "Drop a file to start a live session instantly. Others can join and download while you stay connected."}
           </p>
         </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Drop a file</CardTitle>
-            <CardDescription>
-              {session.isInSession
-                ? "Files you drop are shared with everyone connected to this session."
-                : "Drag and drop or browse. Start a live session to share with others."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Dropzone onUploadSuccess={handleUploadSuccess} />
-          </CardContent>
-        </Card>
-
-        <SessionPanel
-          sessionId={session.sessionId}
-          joinPath={session.joinPath}
-          participantCount={session.participantCount}
-          connected={session.connected}
-          creating={session.creating}
-          onCreateSession={() => {
-            void session.createLiveSession();
-          }}
-        />
-
-        <SessionFilesList
-          files={session.sharedFiles}
-          clientId={session.clientId}
-          isInSession={session.isInSession}
-          onPreview={openFilePreview}
-          onDownload={(file) => {
-            void session.downloadFile(file);
-          }}
-          onDownloadAll={() => {
-            void handleDownloadAll();
-          }}
-          isDownloading={session.isDownloading}
-          isDownloadingAll={isDownloadingAll}
-        />
+        {session.isInSession ? (
+          <SessionPanel
+            sessionId={session.sessionId!}
+            joinPath={session.joinPath}
+            files={session.sharedFiles}
+            clientId={session.clientId}
+            onPreview={openFilePreview}
+            onDownload={(file) => {
+              void session.downloadFile(file);
+            }}
+            onRemove={handleRemoveFile}
+            onDownloadAll={() => {
+              void handleDownloadAll();
+            }}
+            isDownloading={session.isDownloading}
+            isDownloadingAll={isDownloadingAll}
+            onUploadSuccess={(data, file) => {
+              void handleUploadSuccess(data, file);
+            }}
+          />
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>Drop a file</CardTitle>
+              <CardDescription>
+                Drag and drop or browse. A live session starts as soon as your
+                file is ready.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Dropzone onUploadSuccess={handleUploadSuccess} />
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <UploadMetadataDialog

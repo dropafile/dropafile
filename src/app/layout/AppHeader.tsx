@@ -1,9 +1,28 @@
+import { Link2, LoaderCircle, LogOut, Users } from "lucide-react";
 import { useApiHealth } from "@/hooks/use-api-health";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export function AppHeader() {
+type AppHeaderProps = {
+  sessionId: string | null;
+  participantCount: number;
+  connected: boolean;
+  creating: boolean;
+  onStartSession: () => void;
+  onLeaveSession: () => void;
+};
+
+export function AppHeader({
+  sessionId,
+  participantCount,
+  connected,
+  creating,
+  onStartSession,
+  onLeaveSession,
+}: AppHeaderProps) {
   const apiStatus = useApiHealth();
+  const isInSession = sessionId !== null;
 
   const statusLabel =
     apiStatus === "checking"
@@ -29,7 +48,63 @@ export function AppHeader() {
           <span className="font-semibold">dropafile</span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {isInSession ? (
+            <>
+              <div
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs sm:gap-2 sm:px-3 sm:text-sm",
+                  connected
+                    ? "border-green-500/40 bg-green-500/10 text-green-700 dark:text-green-300"
+                    : "border-muted text-muted-foreground",
+                )}
+                title={
+                  connected
+                    ? `${participantCount} connected`
+                    : "Reconnecting to session…"
+                }
+              >
+                <Users className="size-3.5 shrink-0" />
+                <span className="whitespace-nowrap">
+                  {participantCount}
+                  <span className="hidden sm:inline"> connected</span>
+                  {!connected ? "…" : ""}
+                </span>
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onLeaveSession}
+                disabled={creating}
+              >
+                {creating ? (
+                  <LoaderCircle className="size-4 animate-spin" />
+                ) : (
+                  <LogOut className="size-4" />
+                )}
+                <span className="hidden sm:inline">Leave session</span>
+                <span className="sm:hidden">Leave</span>
+              </Button>
+            </>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              onClick={onStartSession}
+              disabled={creating}
+            >
+              {creating ? (
+                <LoaderCircle className="size-4 animate-spin" />
+              ) : (
+                <Link2 className="size-4" />
+              )}
+              <span className="hidden sm:inline">Start live session</span>
+              <span className="sm:hidden">Start</span>
+            </Button>
+          )}
+
           <div
             className="flex items-center gap-2 text-sm text-muted-foreground"
             title={statusLabel}

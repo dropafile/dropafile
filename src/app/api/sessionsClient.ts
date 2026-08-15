@@ -72,3 +72,10 @@ export function writeSessionToLocation(sessionId: string): void {
   url.search = "";
   window.history.replaceState({}, "", url);
 }
+
+export function clearSessionFromLocation(): void {
+  const url = new URL(window.location.href);
+  url.pathname = "/";
+  url.search = "";
+  window.history.replaceState({}, "", url);
+}

@@ -4,6 +4,7 @@ import type {
   SessionFileDataMessage,
   SessionFileErrorMessage,
   SessionFileRemovedMessage,
+  SessionFileRemoveMessage,
   SessionFileRequestMessage,
   SessionMessage,
   SharedFileRecord,
@@ -106,6 +107,9 @@ export class SessionRoom implements DurableObject {
       case "file-added":
         this.handleFileAdded(ws, senderClientId, parsed);
         break;
+      case "file-remove":
+        this.handleFileRemove(senderClientId, parsed);
+        break;
       case "file-request":
         this.handleFileRequest(senderClientId, parsed);
         break;
@@ -199,6 +203,19 @@ export class SessionRoom implements DurableObject {
     }
 
     this.sendToClient(message.requesterClientId, message);
+  }
+
+  private handleFileRemove(
+    senderClientId: string,
+    message: SessionFileRemoveMessage,
+  ): void {
+    const file = this.files.get(message.fileId);
+    if (!file || file.ownerClientId !== senderClientId) {
+      return;
+    }
+
+    this.files.delete(message.fileId);
+    this.broadcast({ type: "file-removed", fileId: message.fileId });
   }
 
   private removeFilesForOwner(ownerClientId: string): void {
