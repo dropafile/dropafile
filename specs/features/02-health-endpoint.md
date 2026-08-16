@@ -15,6 +15,7 @@ timestamp: 2026-08-15T00:00:00Z
   "success": true,
   "data": {
     "status": "healthy",
+    "environment": "development",
     "timestamp": "2026-08-15T12:00:00.000Z"
   }
 }

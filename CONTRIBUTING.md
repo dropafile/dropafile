@@ -12,7 +12,7 @@ cd dropafile
 ## Pull requests
 
 1. Branch from `main`.
-2. Open a PR using the repository template.
+2. Open a pull request with a clear summary and test plan.
 
 ## License
 

@@ -1,40 +1,40 @@
 import { useRef, useState } from "react";
-import { LoaderCircle } from "lucide-react";
-import { toast } from "sonner";
-import { uploadFile } from "@/api/uploadClient";
 import { cn } from "@/lib/utils";
-import type { UploadResponse } from "@shared/types/upload";
 
 type DropzoneProps = {
-  onUploadSuccess: (data: UploadResponse, file: File) => void;
+  onFilesSelected: (files: File[]) => void;
   compact?: boolean;
+  disabled?: boolean;
 };
 
-export function Dropzone({ onUploadSuccess, compact = false }: DropzoneProps) {
+function filesFromList(fileList: FileList | null | undefined): File[] {
+  if (!fileList || fileList.length === 0) {
+    return [];
+  }
+
+  return Array.from(fileList);
+}
+
+export function Dropzone({
+  onFilesSelected,
+  compact = false,
+  disabled = false,
+}: DropzoneProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
-  const [loading, setLoading] = useState(false);
 
-  const handleFile = async (file: File) => {
-    setLoading(true);
-
-    try {
-      const data = await uploadFile(file);
-      onUploadSuccess(data, file);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload failed.");
-    } finally {
-      setLoading(false);
+  const handleFiles = (files: File[]) => {
+    if (disabled || files.length === 0) {
+      return;
     }
+
+    onFilesSelected(files);
   };
 
   const onDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setDragOver(false);
-    const file = event.dataTransfer.files[0];
-    if (file) {
-      void handleFile(file);
-    }
+    handleFiles(filesFromList(event.dataTransfer.files));
   };
 
   return (
@@ -42,22 +42,28 @@ export function Dropzone({ onUploadSuccess, compact = false }: DropzoneProps) {
       <div
         className={cn(
           "relative flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed text-center transition-colors",
-          compact
-            ? "min-h-24 px-4 py-5"
-            : "min-h-40 px-6 py-10",
+          compact ? "min-h-24 px-4 py-5" : "min-h-40 px-6 py-10",
           dragOver
             ? "border-primary bg-accent/40"
             : "border-border bg-muted/20 hover:border-primary/50 hover:bg-muted/40",
-          loading && "pointer-events-none opacity-80",
+          disabled && "pointer-events-none opacity-60",
         )}
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => {
+          if (!disabled) {
+            fileInputRef.current?.click();
+          }
+        }}
         onDragEnter={(event) => {
           event.preventDefault();
-          setDragOver(true);
+          if (!disabled) {
+            setDragOver(true);
+          }
         }}
         onDragOver={(event) => {
           event.preventDefault();
-          setDragOver(true);
+          if (!disabled) {
+            setDragOver(true);
+          }
         }}
         onDragLeave={(event) => {
           event.preventDefault();
@@ -65,48 +71,36 @@ export function Dropzone({ onUploadSuccess, compact = false }: DropzoneProps) {
         }}
         onDrop={onDrop}
         role="button"
-        tabIndex={0}
+        tabIndex={disabled ? -1 : 0}
+        aria-disabled={disabled}
         onKeyDown={(event) => {
+          if (disabled) {
+            return;
+          }
+
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             fileInputRef.current?.click();
           }
         }}
       >
-        {loading ? (
-          <>
-            <LoaderCircle className="size-6 animate-spin text-muted-foreground" />
-            <span className="mt-3 text-sm text-muted-foreground">
-              Processing upload…
-            </span>
-          </>
-        ) : (
-          <>
-            <span
-              className={cn(
-                "font-medium",
-                compact ? "text-sm" : "text-lg",
-              )}
-            >
-              Drop a file here
-            </span>
-            <span className="mt-1 text-sm text-muted-foreground">
-              {compact
-                ? "or click to browse"
-                : "or click to browse your local files"}
-            </span>
-          </>
-        )}
+        <span className={cn("font-medium", compact ? "text-sm" : "text-lg")}>
+          Drop files here
+        </span>
+        <span className="mt-1 text-sm text-muted-foreground">
+          {compact
+            ? "or click to browse — multiple files supported"
+            : "or click to browse your local files — multiple files supported"}
+        </span>
       </div>
       <input
         ref={fileInputRef}
         type="file"
+        multiple
         hidden
+        disabled={disabled}
         onChange={() => {
-          const file = fileInputRef.current?.files?.[0];
-          if (file) {
-            void handleFile(file);
-          }
+          handleFiles(filesFromList(fileInputRef.current?.files));
           fileInputRef.current!.value = "";
         }}
       />

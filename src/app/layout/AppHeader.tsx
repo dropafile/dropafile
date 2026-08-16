@@ -1,40 +1,34 @@
-import { Link2, LoaderCircle, LogOut, Users } from "lucide-react";
+import { Link2, LoaderCircle, LogOut, Server, Users } from "lucide-react";
 import { useApiHealth } from "@/hooks/use-api-health";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
+import { useSession } from "@/contexts/session-context";
 import { cn } from "@/lib/utils";
 
-type AppHeaderProps = {
-  sessionId: string | null;
-  participantCount: number;
-  connected: boolean;
-  creating: boolean;
-  onStartSession: () => void;
-  onLeaveSession: () => void;
-};
-
-export function AppHeader({
-  sessionId,
-  participantCount,
-  connected,
-  creating,
-  onStartSession,
-  onLeaveSession,
-}: AppHeaderProps) {
+export function AppHeader() {
+  const {
+    sessionId,
+    participantCount,
+    connected,
+    creating,
+    createLiveSession,
+    leaveSession,
+  } = useSession();
   const apiStatus = useApiHealth();
   const isInSession = sessionId !== null;
+  const { status: healthStatus, environment } = apiStatus;
 
   const statusLabel =
-    apiStatus === "checking"
+    healthStatus === "checking"
       ? "Checking API…"
-      : apiStatus === "online"
-        ? "API online"
+      : healthStatus === "online"
+        ? `API online (${environment})`
         : "API offline";
 
   const statusColor =
-    apiStatus === "checking"
+    healthStatus === "checking"
       ? "bg-yellow-500"
-      : apiStatus === "online"
+      : healthStatus === "online"
         ? "bg-green-500"
         : "bg-red-500";
 
@@ -48,51 +42,50 @@ export function AppHeader({
           <span className="font-semibold">dropafile</span>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2">
           {isInSession ? (
             <>
               <div
                 className={cn(
-                  "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs sm:gap-2 sm:px-3 sm:text-sm",
+                  "flex items-center gap-1.5 rounded-full border px-2 py-1 text-sm tabular-nums",
                   connected
                     ? "border-green-500/40 bg-green-500/10 text-green-700 dark:text-green-300"
                     : "border-muted text-muted-foreground",
                 )}
                 title={
                   connected
-                    ? `${participantCount} connected`
-                    : "Reconnecting to session…"
+                    ? `${participantCount} participant${participantCount === 1 ? "" : "s"}`
+                    : "Reconnecting…"
                 }
               >
-                <Users className="size-3.5 shrink-0" />
-                <span className="whitespace-nowrap">
-                  {participantCount}
-                  <span className="hidden sm:inline"> connected</span>
-                  {!connected ? "…" : ""}
-                </span>
+                <Users className="size-3.5 shrink-0" aria-hidden />
+                <span>{connected ? participantCount : "…"}</span>
               </div>
 
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                onClick={onLeaveSession}
+                size="icon"
+                className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={leaveSession}
                 disabled={creating}
+                aria-label="Leave session"
+                title="Leave session"
               >
                 {creating ? (
                   <LoaderCircle className="size-4 animate-spin" />
                 ) : (
                   <LogOut className="size-4" />
                 )}
-                <span className="hidden sm:inline">Leave session</span>
-                <span className="sm:hidden">Leave</span>
               </Button>
             </>
           ) : (
             <Button
               type="button"
               size="sm"
-              onClick={onStartSession}
+              onClick={() => {
+                void createLiveSession();
+              }}
               disabled={creating}
             >
               {creating ? (
@@ -106,12 +99,21 @@ export function AppHeader({
           )}
 
           <div
-            className="flex items-center gap-2 text-sm text-muted-foreground"
+            className="relative flex size-8 items-center justify-center"
             title={statusLabel}
+            aria-label={statusLabel}
+            role="status"
           >
-            <span className={cn("h-2.5 w-2.5 rounded-full", statusColor)} />
-            <span className="hidden sm:inline">{statusLabel}</span>
+            <Server className="size-4 text-muted-foreground" aria-hidden />
+            <span
+              className={cn(
+                "absolute right-1 top-1 size-2 rounded-full ring-2 ring-background",
+                statusColor,
+              )}
+              aria-hidden
+            />
           </div>
+
           <ThemeToggle />
         </div>
       </div>

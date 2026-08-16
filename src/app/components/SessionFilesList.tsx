@@ -9,20 +9,12 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useSession } from "@/contexts/session-context";
 import { cn } from "@/lib/utils";
+import type { PendingUpload } from "@/types/pending-upload";
 import { formatBytes } from "@shared/utils/formatBytes";
-import type { SharedFileRecord } from "@shared/types/session";
 import type { FileKind } from "@shared/types/upload";
 import type { LucideIcon } from "lucide-react";
-
-export type SessionFilesPanelProps = {
-  files: SharedFileRecord[];
-  clientId: string;
-  onPreview: (file: SharedFileRecord) => void;
-  onDownload: (file: SharedFileRecord) => void;
-  onRemove: (file: SharedFileRecord) => void;
-  isDownloading: (fileId: string) => boolean;
-};
 
 const FILE_KIND_ICONS: Record<FileKind, LucideIcon> = {
   text: FileText,
@@ -48,20 +40,100 @@ function FileKindIcon({ kind }: { kind: FileKind }) {
   );
 }
 
-export function SessionFilesPanel({
-  files,
-  clientId,
-  onPreview,
-  onDownload,
-  onRemove,
-  isDownloading,
-}: SessionFilesPanelProps) {
-  if (files.length === 0) {
+function PendingUploadRow({ upload }: { upload: PendingUpload }) {
+  const isQueued = upload.status === "queued";
+
+  return (
+    <li>
+      <Card variant="ghost" className="flex-row items-center gap-3 px-3 py-2.5">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted/40">
+            <File className="size-4 text-muted-foreground" aria-hidden />
+          </div>
+
+          <span
+            className={cn(
+              "min-w-0 shrink truncate font-medium",
+              isQueued ? "text-muted-foreground/80" : "text-muted-foreground",
+            )}
+          >
+            {upload.name}
+          </span>
+
+          {isQueued ? (
+            <div
+              className="h-1 min-w-16 flex-1 overflow-hidden rounded-full bg-muted"
+              aria-hidden
+            >
+              <div className="h-full w-0 rounded-full bg-primary/30" />
+            </div>
+          ) : (
+            <div
+              className="h-1 min-w-16 flex-1 overflow-hidden rounded-full bg-muted"
+              role="progressbar"
+              aria-valuenow={upload.progress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`Uploading ${upload.name}`}
+            >
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
+                style={{ width: `${upload.progress}%` }}
+              />
+            </div>
+          )}
+
+          <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
+            {formatBytes(upload.size)}
+          </span>
+        </div>
+      </Card>
+    </li>
+  );
+}
+
+export function PendingUploadsList({
+  uploads,
+}: {
+  uploads: PendingUpload[];
+}) {
+  if (uploads.length === 0) {
     return null;
   }
 
   return (
     <ul className="flex flex-col gap-1.5">
+      {uploads.map((upload) => (
+        <PendingUploadRow key={upload.id} upload={upload} />
+      ))}
+    </ul>
+  );
+}
+
+export function SessionFilesPanel({
+  pendingUploads = [],
+}: {
+  pendingUploads?: PendingUpload[];
+}) {
+  const {
+    sharedFiles: files,
+    clientId,
+    openFilePreview,
+    downloadFile,
+    removeFile,
+    isDownloading,
+  } = useSession();
+
+  if (files.length === 0 && pendingUploads.length === 0) {
+    return null;
+  }
+
+  return (
+    <ul className="flex flex-col gap-1.5">
+      {pendingUploads.map((upload) => (
+        <PendingUploadRow key={upload.id} upload={upload} />
+      ))}
+
       {files.map((file) => {
         const downloading = isDownloading(file.fileId);
         const isOwner = file.ownerClientId === clientId;
@@ -75,7 +147,7 @@ export function SessionFilesPanel({
               <button
                 type="button"
                 className="group/file-row flex min-w-0 flex-1 items-center gap-3 text-left"
-                onClick={() => onPreview(file)}
+                onClick={() => openFilePreview(file)}
               >
                 <FileKindIcon kind={file.kind} />
 
@@ -96,7 +168,7 @@ export function SessionFilesPanel({
                     variant="ghost"
                     className="size-8 text-muted-foreground hover:text-destructive"
                     aria-label={`Remove ${file.name}`}
-                    onClick={() => onRemove(file)}
+                    onClick={() => removeFile(file)}
                   >
                     <X className="size-4" />
                   </Button>
@@ -109,7 +181,9 @@ export function SessionFilesPanel({
                   className="size-8"
                   disabled={downloading}
                   aria-label={`Download ${file.name}`}
-                  onClick={() => onDownload(file)}
+                  onClick={() => {
+                    void downloadFile(file);
+                  }}
                 >
                   {downloading ? (
                     <LoaderCircle className="size-4 animate-spin" />

@@ -8,3 +8,4 @@ Numbered concepts for agents and maintainers.
 * [04 — Middleware](features/04-middleware.md)
 * [05 — Fullstack runtime](features/05-fullstack-runtime.md)
 * [06 — Extension guidelines](features/06-extension-guidelines.md)
+* [07 — Live sessions](features/07-live-sessions.md)

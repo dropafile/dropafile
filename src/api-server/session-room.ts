@@ -6,12 +6,20 @@ import type {
   SessionFileRemoveMessage,
   SessionFileRequestMessage,
   SessionMessage,
+  SessionParticipantInfo,
   SharedFileRecord,
 } from "@shared/types/session";
+import { extractClientAttributes } from "./client-attributes";
 
 type SocketAttachment = {
   clientId: string;
   connectedAt: number;
+};
+
+type ConnectedClient = {
+  clientId: string;
+  connectedAt: number;
+  attributes: ReturnType<typeof extractClientAttributes>;
 };
 
 function isActiveSocket(socket: WebSocket): boolean {
@@ -31,6 +39,8 @@ const RECONNECT_CLOSE_REASON = "replaced by newer connection";
 export class SessionRoom implements DurableObject {
   /** Ephemeral catalog for routing only — never persisted. */
   private readonly files = new Map<string, SharedFileRecord>();
+  private readonly clients = new Map<string, ConnectedClient>();
+  private hostClientId: string | null = null;
 
   constructor(
     private readonly state: DurableObjectState,
@@ -56,15 +66,39 @@ export class SessionRoom implements DurableObject {
         connectedAt: Date.now(),
       } satisfies SocketAttachment);
 
+      const attributes = extractClientAttributes(request);
+      const connectedAt = Date.now();
+      this.clients.set(clientId, { clientId, connectedAt, attributes });
+
+      if (!this.hostClientId) {
+        this.hostClientId = clientId;
+      }
+
       queueMicrotask(() => {
+        this.sendToSocket(server, {
+          type: "file-sync",
+          files: [...this.files.values()].sort(
+            (a, b) => b.uploadedAt - a.uploadedAt,
+          ),
+        });
         this.broadcastExcept(server, { type: "peer-joined", clientId });
       });
       this.broadcastPresence();
+      this.broadcastParticipants();
 
       return new Response(null, { status: 101, webSocket: client });
     }
 
     if (url.pathname.endsWith("/init") && request.method === "POST") {
+      try {
+        const body = (await request.json()) as { hostClientId?: string };
+        if (body.hostClientId?.trim()) {
+          this.hostClientId = body.hostClientId.trim();
+        }
+      } catch {
+        // Empty body is fine.
+      }
+
       const count = this.activeSocketCount();
       return Response.json({
         participantCount: count,
@@ -133,9 +167,11 @@ export class SessionRoom implements DurableObject {
     const isReconnectReplace = reason === RECONNECT_CLOSE_REASON;
 
     if (clientId && !isReconnectReplace) {
+      this.clients.delete(clientId);
       this.removeFilesForOwner(clientId);
     }
     this.broadcastPresence();
+    this.broadcastParticipants();
   }
 
   webSocketError(ws: WebSocket): void {
@@ -146,9 +182,11 @@ export class SessionRoom implements DurableObject {
     }
     const clientId = getClientId(ws);
     if (clientId) {
+      this.clients.delete(clientId);
       this.removeFilesForOwner(clientId);
     }
     this.broadcastPresence();
+    this.broadcastParticipants();
   }
 
   private handleFileAdded(
@@ -163,6 +201,7 @@ export class SessionRoom implements DurableObject {
 
     this.files.set(file.fileId, file);
     this.broadcastExcept(ws, { type: "file-added", file });
+    this.broadcastParticipants();
   }
 
   private handleFileRequest(
@@ -216,12 +255,14 @@ export class SessionRoom implements DurableObject {
     message: SessionFileRemoveMessage,
   ): void {
     const file = this.files.get(message.fileId);
-    if (!file || file.ownerClientId !== senderClientId) {
+
+    if (file && file.ownerClientId !== senderClientId) {
       return;
     }
 
     this.files.delete(message.fileId);
     this.broadcast({ type: "file-removed", fileId: message.fileId });
+    this.broadcastParticipants();
   }
 
   private removeFilesForOwner(ownerClientId: string): void {
@@ -245,6 +286,42 @@ export class SessionRoom implements DurableObject {
     }
 
     this.broadcast({ type: "owner-left", clientId: ownerClientId });
+    this.broadcastParticipants();
+  }
+
+  private fileCountForClient(clientId: string): number {
+    let count = 0;
+
+    for (const file of this.files.values()) {
+      if (file.ownerClientId === clientId) {
+        count += 1;
+      }
+    }
+
+    return count;
+  }
+
+  private buildParticipantsList(): SessionParticipantInfo[] {
+    const participants: SessionParticipantInfo[] = [];
+
+    for (const client of this.clients.values()) {
+      participants.push({
+        clientId: client.clientId,
+        fileCount: this.fileCountForClient(client.clientId),
+        attributes: client.attributes,
+        connectedAt: client.connectedAt,
+      });
+    }
+
+    return participants.sort((a, b) => a.connectedAt - b.connectedAt);
+  }
+
+  private broadcastParticipants(): void {
+    this.broadcast({
+      type: "participants",
+      hostClientId: this.hostClientId,
+      participants: this.buildParticipantsList(),
+    });
   }
 
   private closeSocketsForClient(clientId: string): void {

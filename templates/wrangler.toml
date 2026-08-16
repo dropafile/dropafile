@@ -1,8 +1,0 @@
-name = "repo-name"
-main = "src/api-server/index.ts"
-compatibility_date = "2026-07-03"
-
-[assets]
-not_found_handling = "single-page-application"
-
-run_worker_first = ["/api/*", "/health", "/health/*"]

@@ -19,7 +19,11 @@ async function parseApiResponse<T>(response: Response): Promise<T> {
 }
 
 export async function createSession(): Promise<CreateSessionResponse> {
-  const response = await fetch("/api/sessions", { method: "POST" });
+  const response = await fetch("/api/sessions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ hostClientId: getOrCreateClientId() }),
+  });
   return parseApiResponse<CreateSessionResponse>(response);
 }
 
@@ -64,6 +68,42 @@ export function readSessionIdFromLocation(): string | null {
 
   const match = window.location.pathname.match(/^\/s\/([^/]+)/);
   return match?.[1] ?? null;
+}
+
+export function parseSessionIdFromInput(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    const url = new URL(
+      trimmed.includes("://") ? trimmed : trimmed.startsWith("/") ? trimmed : `/${trimmed}`,
+      window.location.origin,
+    );
+    const fromPath = url.pathname.match(/^\/s\/([^/]+)/)?.[1];
+    if (fromPath) {
+      return fromPath;
+    }
+
+    const fromQuery = url.searchParams.get("session");
+    if (fromQuery) {
+      return fromQuery;
+    }
+  } catch {
+    // Fall through to raw code parsing.
+  }
+
+  const pathMatch = trimmed.match(/\/s\/([^/?#]+)/);
+  if (pathMatch?.[1]) {
+    return pathMatch[1];
+  }
+
+  if (/^[a-f0-9]{8,16}$/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  return null;
 }
 
 export function writeSessionToLocation(sessionId: string): void {

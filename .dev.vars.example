@@ -1,0 +1,5 @@
+# Copy to .dev.vars for local wrangler / Vite dev (gitignored).
+ENVIRONMENT=development
+
+# Optional — comma-separated CORS origins when calling API from another origin
+# ALLOWED_ORIGINS=http://localhost:5173

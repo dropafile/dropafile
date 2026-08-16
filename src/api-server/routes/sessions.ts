@@ -21,7 +21,21 @@ sessionsRouter.post("/sessions", async (c) => {
   const sessionId = generateSessionId();
   const stub = roomStub(c.env, sessionId);
 
-  await stub.fetch(new Request("https://session-room/init", { method: "POST" }));
+  let hostClientId: string | undefined;
+  try {
+    const body = await c.req.json<{ hostClientId?: string }>();
+    hostClientId = body.hostClientId?.trim() || undefined;
+  } catch {
+    // Empty body is fine.
+  }
+
+  await stub.fetch(
+    new Request("https://session-room/init", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hostClientId }),
+    }),
+  );
 
   return c.json(
     successResponse({

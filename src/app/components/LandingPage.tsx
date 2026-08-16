@@ -1,8 +1,10 @@
+import { useState } from "react";
 import {
   ArrowRight,
   Download,
   Link2,
   LoaderCircle,
+  LogIn,
   QrCode,
   Shield,
   Upload,
@@ -10,6 +12,8 @@ import {
   Zap,
 } from "lucide-react";
 import { Dropzone } from "@/components/Dropzone";
+import { JoinSessionDialog } from "@/components/JoinSessionDialog";
+import { PendingUploadsList } from "@/components/SessionFilesList";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,13 +24,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { UploadResponse } from "@shared/types/upload";
-
-type LandingPageProps = {
-  onUploadSuccess: (data: UploadResponse, file: File) => void;
-  onStartSession: () => void;
-  creating: boolean;
-};
+import { useSession } from "@/contexts/session-context";
 
 const steps = [
   {
@@ -76,13 +74,17 @@ const useCases = [
   },
 ] as const;
 
-export function LandingPage({
-  onUploadSuccess,
-  onStartSession,
-  creating,
-}: LandingPageProps) {
+export function LandingPage() {
+  const { enqueueFiles, pendingUploads, createLiveSession, creating } =
+    useSession();
+  const [joinOpen, setJoinOpen] = useState(false);
+
   return (
     <div className="space-y-20 pb-12 md:space-y-28">
+      <JoinSessionDialog
+        open={joinOpen}
+        onClose={() => setJoinOpen(false)}
+      />
       <section className="relative overflow-hidden rounded-2xl border bg-muted/30">
         <div
           aria-hidden
@@ -116,7 +118,9 @@ export function LandingPage({
               <Button
                 type="button"
                 size="lg"
-                onClick={onStartSession}
+                onClick={() => {
+                  void createLiveSession();
+                }}
                 disabled={creating}
               >
                 {creating ? (
@@ -125,6 +129,16 @@ export function LandingPage({
                   <Link2 className="size-4" />
                 )}
                 Start live session
+              </Button>
+              <Button
+                type="button"
+                size="lg"
+                variant="outline"
+                onClick={() => setJoinOpen(true)}
+                disabled={creating}
+              >
+                <LogIn className="size-4" />
+                Join session
               </Button>
               <Button
                 type="button"
@@ -160,8 +174,9 @@ export function LandingPage({
               </Badge>
             </div>
           </CardHeader>
-          <CardContent className="pt-6">
-            <Dropzone onUploadSuccess={onUploadSuccess} />
+          <CardContent className="space-y-4 pt-6">
+            <PendingUploadsList uploads={pendingUploads} />
+            <Dropzone onFilesSelected={enqueueFiles} />
           </CardContent>
         </Card>
       </section>
@@ -238,7 +253,9 @@ export function LandingPage({
           <Button
             type="button"
             size="lg"
-            onClick={onStartSession}
+            onClick={() => {
+              void createLiveSession();
+            }}
             disabled={creating}
           >
             {creating ? (

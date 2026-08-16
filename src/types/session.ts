@@ -1,5 +1,25 @@
 import type { FileKind } from "./upload";
 
+export type ClientAttributes = {
+  country: string | null;
+  browser: string | null;
+  platform: string | null;
+  language: string | null;
+};
+
+export type SessionParticipantInfo = {
+  clientId: string;
+  fileCount: number;
+  attributes: ClientAttributes;
+  connectedAt: number;
+};
+
+export type SessionParticipantsMessage = {
+  type: "participants";
+  hostClientId: string | null;
+  participants: SessionParticipantInfo[];
+};
+
 export type SharedFileRecord = {
   fileId: string;
   ownerClientId: string;
@@ -76,6 +96,7 @@ export type SessionFileErrorMessage = {
 
 export type SessionMessage =
   | SessionPresenceMessage
+  | SessionParticipantsMessage
   | SessionFileAddedMessage
   | SessionFileRemovedMessage
   | SessionFileRemoveMessage

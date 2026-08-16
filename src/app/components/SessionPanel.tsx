@@ -7,15 +7,15 @@ import {
   LoaderCircle,
   Mail,
   MessageCircle,
+  Trash2,
+  Users,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { buildShareUrl } from "@/api/sessionsClient";
 import { Dropzone } from "@/components/Dropzone";
-import {
-  SessionFilesPanel,
-  type SessionFilesPanelProps,
-} from "@/components/SessionFilesList";
+import { SessionDetailsDialog } from "@/components/SessionDetailsDialog";
+import { SessionFilesPanel } from "@/components/SessionFilesList";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -24,32 +24,39 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useSession } from "@/contexts/session-context";
 import {
   buildMailShareUrl,
   buildWhatsAppShareUrl,
   openShareUrl,
 } from "@/lib/session-share";
 import { cn } from "@/lib/utils";
-import type { UploadResponse } from "@shared/types/upload";
 
-type SessionPanelProps = {
-  sessionId: string;
-  joinPath: string | null;
-  onUploadSuccess: (data: UploadResponse, file: File) => void;
-  onDownloadAll: () => void;
-  isDownloadingAll?: boolean;
-} & SessionFilesPanelProps;
-
-export function SessionPanel({
-  sessionId,
-  joinPath,
-  onUploadSuccess,
-  onDownloadAll,
-  isDownloadingAll = false,
-  files,
-  ...filesProps
-}: SessionPanelProps) {
+export function SessionPanel() {
+  const session = useSession();
   const [qrHovered, setQrHovered] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  const {
+    sessionId,
+    joinPath,
+    sharedFiles: files,
+    clientId,
+    participants,
+    hostClientId,
+    connected,
+    pendingUploads,
+    enqueueFiles,
+    downloadAllFiles,
+    removeAllOwnedFiles,
+    isDownloadingAll,
+    isDeletingAll,
+  } = session;
+
+  const hasDownloadableFiles = files.length > 0;
+  const ownedFileCount = files.filter(
+    (file) => file.ownerClientId === clientId,
+  ).length;
 
   const shareUrl = useMemo(() => {
     if (joinPath) {
@@ -75,28 +82,73 @@ export function SessionPanel({
     openShareUrl(buildWhatsAppShareUrl(shareUrl));
   }, [shareUrl]);
 
+  if (!sessionId) {
+    return null;
+  }
+
   return (
-    <Card>
-      {files.length > 0 ? (
-        <div className="flex justify-end px-6 pt-6">
+    <Card className="gap-0 py-0">
+      <SessionDetailsDialog
+        open={detailsOpen}
+        onClose={() => setDetailsOpen(false)}
+        shareUrl={shareUrl}
+        participants={participants}
+        hostClientId={hostClientId}
+        clientId={clientId}
+        connected={connected}
+      />
+
+      <CardContent className="flex flex-col gap-3 py-4">
+        <div className="flex items-center justify-between gap-2">
           <Button
             type="button"
-            variant="secondary"
+            variant="outline"
             size="sm"
-            onClick={onDownloadAll}
-            disabled={isDownloadingAll}
+            onClick={() => setDetailsOpen(true)}
           >
-            {isDownloadingAll ? (
-              <LoaderCircle className="size-4 animate-spin" />
-            ) : (
-              <Download className="size-4" />
-            )}
-            Download all
+            <Users className="size-4" />
+            Session details
           </Button>
-        </div>
-      ) : null}
 
-      <CardContent className={files.length > 0 ? "pt-4" : "pt-6"}>
+          <div className="flex gap-2">
+            {ownedFileCount > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={removeAllOwnedFiles}
+                disabled={isDeletingAll}
+              >
+                {isDeletingAll ? (
+                  <LoaderCircle className="size-4 animate-spin" />
+                ) : (
+                  <Trash2 className="size-4" />
+                )}
+                Delete all
+              </Button>
+            ) : null}
+            {hasDownloadableFiles ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  void downloadAllFiles();
+                }}
+                disabled={isDownloadingAll}
+              >
+                {isDownloadingAll ? (
+                  <LoaderCircle className="size-4 animate-spin" />
+                ) : (
+                  <Download className="size-4" />
+                )}
+                Download all
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
         <div className="flex flex-col gap-6 md:flex-row md:items-stretch">
           <div className="flex w-full shrink-0 flex-col items-center gap-3 md:w-44">
             <div
@@ -176,8 +228,8 @@ export function SessionPanel({
           </div>
 
           <div className="flex min-w-0 flex-1 flex-col gap-3 border-t pt-6 md:border-t-0 md:border-l md:pt-0 md:pl-6">
-            <Dropzone compact onUploadSuccess={onUploadSuccess} />
-            <SessionFilesPanel files={files} {...filesProps} />
+            <Dropzone compact onFilesSelected={enqueueFiles} />
+            <SessionFilesPanel pendingUploads={pendingUploads} />
           </div>
         </div>
       </CardContent>

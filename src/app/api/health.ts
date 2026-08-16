@@ -1,15 +1,20 @@
+import type { AppEnvironment } from "@shared/utils/environment";
+
 export type HealthStatus = "checking" | "online" | "offline";
+
+export type HealthData = {
+  status: string;
+  environment: AppEnvironment;
+  timestamp: string;
+};
 
 type HealthResponse = {
   success: boolean;
-  data?: {
-    status: string;
-    timestamp: string;
-  };
+  data?: HealthData;
 };
 
 export async function fetchHealth(): Promise<{
-  data: { status: string; timestamp: string } | null;
+  data: HealthData | null;
   error: string | null;
 }> {
   try {
