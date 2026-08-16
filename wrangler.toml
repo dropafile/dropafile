@@ -7,7 +7,7 @@ bindings = [{ name = "SESSION_ROOM", class_name = "SessionRoom" }]
 
 [[migrations]]
 tag = "v1"
-new_classes = ["SessionRoom"]
+new_sqlite_classes = ["SessionRoom"]
 
 [assets]
 not_found_handling = "single-page-application"
