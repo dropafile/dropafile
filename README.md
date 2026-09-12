@@ -5,7 +5,7 @@
 <p>
 <strong>Drop a file. Everyone gets it live.</strong> Ephemeral, live-session file sharing on <strong>Cloudflare Workers</strong> — spin up a room, share a link or QR code, and let connected peers download in real time. No accounts, no persistent storage.
 </p>
-<a href="https://dropafile.app-org-es.workers.dev/"><img src="https://img.shields.io/badge/LIVE_DEMO-F38020?style=flat-square&logo=cloudflare&logoColor=white" width="175" alt="Live demo"/></a>
+<a href="https://dropafile.xarlizard.workers.dev/"><img src="https://img.shields.io/badge/LIVE_DEMO-F38020?style=flat-square&logo=cloudflare&logoColor=white" width="175" alt="Live demo"/></a>
 </div>
 
 <br/><br/>
