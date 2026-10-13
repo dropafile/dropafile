@@ -21,7 +21,11 @@
 <br/>
 <br/>
 
-<img src=".github/screenshot.png" width="824" alt="dropafile — live file sharing" style="border-radius: 5px;"/><br/>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/dropfaile/.github/main/.github/screenshot_dark.png"/>
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/dropfaile/.github/main/.github/screenshot.png"/>
+  <img src="https://raw.githubusercontent.com/dropfaile/.github/main/.github/screenshot.png" width="824" alt="dropafile — live file sharing" style="border-radius: 5px;"/>
+</picture><br/>
 
 **No accounts · No cloud storage · Peer-to-peer while online**
 
